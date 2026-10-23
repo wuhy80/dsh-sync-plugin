@@ -250,5 +250,68 @@ reset()
   console.log('11) 写回前备份（且备份的是旧版本）✓')
 }
 
+// ── 12) Windows 长路径（>260 字符）也要能同步 ────────────────────────────
+{
+  reset()
+  const longSlug = `--${'d'.repeat(90)}--`
+  const longSid = `session-${'e'.repeat(70)}`
+  const localLong = put(paths.sessions, path.join(longSlug, longSid, SESSION_FILE), encodeFrames(['{"e":1}']))
+  assert.ok(localLong.length > 240, `构造的路径应足够长：${localLong.length}`)
+
+  const r = planSync({ paths, settings: readSettings(paths), mirror })
+  const dec = r.plan.decisions.find((d) => d.kind === 'session')
+  assert.equal(dec.action, 'push')
+  applyPlan(r.plan, { paths, mirror })
+
+  const { exists, readIf } = await import('../lib/fsx.js')
+  const repoFile = path.join(mirror, dec.rel)
+  assert.ok(repoFile.length > 240, `镜像侧路径也应超长：${repoFile.length}`)
+  assert.equal(exists(repoFile), true, `长路径写入应成功：${repoFile}`)
+  assert.equal(readIf(repoFile) !== null, true, '长路径应能读回')
+  console.log(`12) Windows 长路径（${repoFile.length} 字符）✓`)
+}
+
+// ── 13) 跨进程锁：互斥 / 陈旧锁抢占 / 释放 ───────────────────────────────
+{
+  const { acquireLock, releaseLock } = await import('../lib/fsx.js')
+  const lockPath = path.join(paths.pluginHome, 'sync.lock')
+  fs.rmSync(lockPath, { force: true })
+
+  const first = acquireLock(lockPath)
+  assert.equal(first.ok, true, '首次应拿到锁')
+
+  const second = acquireLock(lockPath)
+  assert.equal(second.ok, false, '同进程重复拿锁应失败')
+  assert.equal(second.holder.pid, process.pid, '应能报出持有者')
+
+  // 陈旧锁（30 分钟前）应被抢占
+  fs.writeFileSync(lockPath, JSON.stringify({ pid: 999999, host: 'ghost', at: Date.now() - 31 * 60 * 1000 }))
+  const third = acquireLock(lockPath)
+  assert.equal(third.ok, true, '陈旧锁应可抢占')
+
+  assert.equal(releaseLock(lockPath, process.pid), true, '释放应成功')
+  assert.equal(fs.existsSync(lockPath), false, '释放后锁文件应消失')
+  console.log('13) 跨进程锁（互斥 / 抢占 / 释放）✓')
+}
+
+// ── 14) 公共仓库拒绝（注入 checkPrivate，离线可测）────────────────────────
+{
+  reset()
+  const routes3 = makeRoutes({ paths, checkPrivate: async () => ({ state: 'public', repo: 'me/public-repo' }) })
+  const srv = http.createServer((req, res) => {
+    const route = routes3.find((r) => r.path === req.url.split('?')[0])
+    if (!route) { res.writeHead(404); res.end(); return }
+    route.handler(req, res)
+  })
+  await new Promise((resolve) => srv.listen(0, '127.0.0.1', resolve))
+  const b3 = `http://127.0.0.1:${srv.address().port}/api/dsh-sync`
+  const res = await fetch(`${b3}/sync`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+  const body = await res.json()
+  assert.equal(res.status, 400, `公共库应被拒绝，实际 ${res.status}`)
+  assert.match(body.error, /公共仓库/, `错误信息应说明原因：${body.error}`)
+  srv.close()
+  console.log('14) 公共仓库拒绝（400）✓')
+}
+
 fs.rmSync(tmp, { recursive: true, force: true })
 console.log('\n✅ 自查（对抗性）测试全部通过')

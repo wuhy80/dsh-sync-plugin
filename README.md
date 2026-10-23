@@ -63,7 +63,11 @@ dsh_sync(action: "plan")     # 预演：会改动哪些文件（不写盘）
 
 ```powershell
 node --test test/merge.test.mjs     # 合并核心单测（17 项）
-node test/smoke-real.mjs            # 用本机真实数据做只读冒烟
+node test/audit.test.mjs            # 对抗性自查（14 项：损坏/超大/长路径/并发/锁/公共库…）
+node test/smoke-real.mjs            # 本机真实数据只读冒烟
+node test/e2e-local.mjs             # 本地裸仓库双机往返
+node test/routes-http.mjs           # 路由层 HTTP（真 server）
+node test/e2e-github.mjs            # 真实 GitHub 往返（需要 SSH 凭据，会清空仓库内容）
 ```
 
 ## 已知限制
