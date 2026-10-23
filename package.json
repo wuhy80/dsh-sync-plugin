@@ -1,0 +1,42 @@
+{
+  "name": "@local/dsh-sync",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "DSH 多机同步：会话 / 工作区 / 插件清单走私有 Git 仓库，按数据类型分别合并（会话帧级并集、工作区键合并、插件集合合并），密钥永不入库。",
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib",
+    "cordis.patch.yml",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.0-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": []
+    }
+  }
+}

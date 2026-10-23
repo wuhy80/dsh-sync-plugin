@@ -1,0 +1,11 @@
+# dsh-sync bundle patch.
+#
+# 一条裸插件行：宿主半边（exports "."）负责 /api/dsh-sync 路由、Git 传输、
+# 三类数据的合并与写入；package.json 的 dsh.client 声明让浏览器半边
+# （exports "./client"）在 Web GUI 里加载侧边栏入口与面板。
+#
+# 设置不放进 Cordis 配置（避免为 schemastery 增依赖），落在
+# $DSH_HOME/dsh-sync.json（0600），可从面板里改。
+- insert:
+    - id: dsh-sync
+      name: '@local/dsh-sync'
