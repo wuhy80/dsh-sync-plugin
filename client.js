@@ -171,6 +171,7 @@ window.__ModuleLoader__.load({
               `写入：镜像 ${data.applied?.written?.repo ?? 0} · 本地 ${data.applied?.written?.local ?? 0}`,
               `提交：${data.commit?.committed ? data.commit.sha : '无改动'} · 推送：${data.pushed?.ok ? '成功' : data.pushed?.skipped ? '跳过' : `失败 ${data.pushed?.detail ?? ''}`}`,
               data.applied?.backup?.dir ? `备份：${data.applied.backup.dir}` : '',
+              data.needsInstall ? `\n⚠️ 插件清单已更新，请执行一次依赖安装：${data.installCommand}\n（装完重启 DSH 才会生效）` : '',
             ].filter(Boolean).join('\n'),
           })
           await load()
