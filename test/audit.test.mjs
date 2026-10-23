@@ -224,5 +224,31 @@ reset()
   console.log(`10) 并发同步未写坏镜像（状态 ${hits.join('/')}，干净 & 已推送）✓`)
 }
 
+// ── 11) 写回本地前必须备份（核心安全承诺，不能只写在文档里）───────────────
+{
+  reset()
+  const before = encodeFrames(['{"e":1}'])
+  const after = encodeFrames(['{"e":1}', '{"e":2}'])
+  const localFile = put(paths.sessions, path.join(WS, SID, SESSION_FILE), before)
+  put(mirror, path.join('sessions', WS, SID, SESSION_FILE), after)
+
+  const r = planSync({ paths, settings: readSettings(paths), mirror })
+  const dec = r.plan.decisions.find((d) => d.kind === 'session')
+  assert.equal(dec.action, 'pull', '远端领先应产生 pull')
+  const applied = applyPlan(r.plan, { paths, mirror })
+
+  assert.ok(applied.backup.dir, '应生成备份目录')
+  assert.ok(applied.backup.saved.length >= 1, '应至少备份一个文件')
+  const backed = path.join(applied.backup.dir, 'sessions', WS, SID, SESSION_FILE)
+  assert.equal(fs.existsSync(backed), true, `备份文件应存在：${backed}`)
+  assert.equal(
+    fs.readFileSync(backed).equals(before),
+    true,
+    '备份内容必须是**覆盖前**的版本',
+  )
+  assert.equal(fs.readFileSync(localFile).equals(after), true, '本地应已更新为新版本')
+  console.log('11) 写回前备份（且备份的是旧版本）✓')
+}
+
 fs.rmSync(tmp, { recursive: true, force: true })
 console.log('\n✅ 自查（对抗性）测试全部通过')
