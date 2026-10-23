@@ -68,6 +68,8 @@ node test/smoke-real.mjs            # 本机真实数据只读冒烟
 node test/e2e-local.mjs             # 本地裸仓库双机往返
 node test/routes-http.mjs           # 路由层 HTTP（真 server）
 node test/e2e-github.mjs            # 真实 GitHub 往返（需要 SSH 凭据，会清空仓库内容）
+node --test test/env-injection.test.mjs   # HTTPS+token 的凭据注入机制
+node --test test/client-slots.test.mjs    # 面板插槽注册（不用开 GUI）
 ```
 
 ## 已知限制

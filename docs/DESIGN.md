@@ -114,6 +114,8 @@ plugins/<profile>/pnpm-lock.yaml
 | `e2e-local.mjs` | 本地裸仓库冒充 GitHub，两台机器往返 | 两侧收敛、git 干净 |
 | `routes-http.mjs`（9 断言） | 真 http.Server 挂 6 条路由 | 全绿（含 405 / 400 / 掩码不落盘） |
 | `e2e-github.mjs`（真实网络） | 两台"机器"经 SSH 往返真实私有仓库 | 会话并集 3 行、工作区 `w-a + w-b`、远端 4 提交、结束时干净 |
+| `env-injection.test.mjs`（4 项） | HTTPS+token 的 `GIT_CONFIG_*` 注入：env 形状 + git 真的按它改写 URL | 全绿 |
+| `client-slots.test.mjs`（4 项） | 浏览器半边：模块 id、依赖、`sidebar.panellist` 与 `main` 的 id/key 一致、注册失败不抛 | 全绿 |
 
 真实宿主验证：装进 `web` profile 起实例到 :8899 → `GET /api/dsh-sync/state` 返回 200
 （读到真实会话/插件/git 版本），Web GUI 侧边栏出现「多机同步」面板并正常渲染。
@@ -159,8 +161,12 @@ plugins/<profile>/pnpm-lock.yaml
   所以**不要用 `git merge` 手工处理 `sessions/**`**。
 - 帧末尾的**垃圾字节**会被 zstd 忽略：解码成功、但重新编码时这些字节不会保留。
   它们对 DSH 本身也是不可读的，因此按"无意义残留"处理。
+- **删除与取消归档不会传播**（并集语义）：在甲机删掉一个会话，乙机和仓库里仍有，
+  下一次同步会把它**拉回来**。要真正删除，需要同时清掉仓库里的那份
+  （`~/.dsh/dsh-sync/repo/sessions/<slug>/<sid>/`）。v0.3 会引入墓碑（tombstone）。
 - `pnpm-lock.yaml` 不做合并（合并后的锁文件几乎必然损坏），以本地为准。
 - 工作区 `path` 跨机不同只报告不修改——自动改路径的风险远大于收益。
-- 路径过深时（`~/.dsh/dsh-sync/repo/sessions/<slug>/<sid>/…`）可能触及 Windows 260 字符限制，
-  会话 slug 很长时需要开启长路径支持。
+- 路径过深时（`~/.dsh/dsh-sync/repo/sessions/<slug>/<sid>/…`）可能触及 Windows 260 字符限制；
+  已用 `\\?\` 前缀绕过（实测 282 字符可用），但极深路径仍建议开启系统长路径支持。
+- 备份默认保留最近 **20** 份（`pruneBackups`），超出自动删除。
 - 面板的同步动作会写真实数据，首次使用建议先「预演」并确认备份目录已生成。
