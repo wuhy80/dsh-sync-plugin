@@ -17,9 +17,11 @@ import path from 'node:path'
 const { gitEnv, run } = await import('../lib/proc.js')
 
 test('gitEnv：https+token 时注入 insteadOf，且 token 只在环境变量里', () => {
-  const env = gitEnv({ token: 'ghp_TESTTOKEN123', remote: 'https://github.com/o/r.git' })
+  // 刻意不用 ghp_/github_pat_ 前缀：GitHub 的 secret scanning 会对这类字面量发误报邮件
+  const TOKEN = 'FAKE_TOKEN_FOR_TEST_ONLY'
+  const env = gitEnv({ token: TOKEN, remote: 'https://github.com/o/r.git' })
   assert.equal(env.GIT_CONFIG_COUNT, '1')
-  assert.equal(env.GIT_CONFIG_KEY_0, 'url.https://x-access-token:ghp_TESTTOKEN123@github.com/.insteadOf')
+  assert.equal(env.GIT_CONFIG_KEY_0, `url.https://x-access-token:${TOKEN}@github.com/.insteadOf`)
   assert.equal(env.GIT_CONFIG_VALUE_0, 'https://github.com/')
   // 其它安全默认值
   assert.equal(env.GIT_TERMINAL_PROMPT, '0')

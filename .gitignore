@@ -2,3 +2,12 @@
 *.log
 test/tmp/
 .DS_Store
+
+# 绝不允许进仓库的东西（防御性写在最外层）
+.credentials.yaml
+credentials.yaml
+dsh-sync.json
+*.token
+*.pem
+*.key
+id_rsa*
