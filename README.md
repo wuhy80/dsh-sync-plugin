@@ -8,15 +8,30 @@ DSH 多机同步插件：**会话 / 工作区 / 插件清单 / 设置层**走私
 
 ## 安装
 
-```powershell
-# 从本地目录安装（开发态）
-dsh plugin --profile desktop add file:D:\code\dsh-sync
+**插件跟 profile 无关**：desktop / web / tui / headless 都能装，插件自己会检测当前跑在哪个
+profile 里（见下方「profile」）。区别只在安装方式：
 
-# 或先本地链接，改代码后重启即生效
-dsh plugin --profile desktop add link:D:\code\dsh-sync
+```powershell
+# web / tui / headless：CLI 可以管
+dsh plugin --profile web add git+https://github.com/wuhy80/dsh-sync-plugin.git
+
+# 开发态：装成链接包，改完代码跑 scripts/reload.mjs 即可热重载（不用重启）
+dsh plugin --profile web add link:D:\code\dsh-sync
 ```
 
-装完**重启 DSH**，侧边栏出现「多机同步」图标。
+```text
+# desktop：由 Electron 应用托管，`dsh plugin --profile desktop …` 会被 CLI 直接拒绝
+#   error: profile "desktop" is managed exclusively by the Electron application
+# 正确做法二选一：
+#   1) 在应用内的插件管理面板里安装（推荐，它自己会登记 bundle）；
+#   2) 手工两步（等价于一次 plugin add）：
+#        a. 在 ~/.dsh/profiles/desktop 里 pnpm add "git+https://github.com/wuhy80/dsh-sync-plugin.git"
+#        b. 把 "@local/dsh-sync" 追加进 profiles/desktop/package.json 的 dsh.profile.bundles
+```
+
+> 光有依赖不会被加载：DSH 的加载器是按 `dsh.profile.bundles` 顺序叠加每个 bundle 的 patch 的。
+
+装完**重启 DSH**（首次安装需要），侧边栏出现「多机同步」图标。
 
 ## 第一次使用
 
@@ -25,6 +40,7 @@ dsh plugin --profile desktop add link:D:\code\dsh-sync
    - **远程仓库**：`git@github.com:<你>/dsh-sync.git`（推荐，SSH 免 token）
      或 `https://github.com/<你>/dsh-sync.git`（需填 token）
    - **分支**：`main`
+   - **profile**：**留空 = 自动检测**（默认）。只有想同步「另一个 profile 的插件清单」时才需要手填。
    - **访问令牌**：仅 HTTPS 需要；只写入 `~/.dsh/dsh-sync.json`（0600），不会进 argv、不会进仓库
 3. 点 **检测**：确认 git 可用、仓库可见性为 `private`。
 4. 点 **预演**：看要改哪些文件（这一步不写盘）。
@@ -32,6 +48,10 @@ dsh plugin --profile desktop add link:D:\code\dsh-sync
    `~/.dsh/dsh-sync/backup/<时间戳>-pre-apply/`。
 
 另一台机器重复 1–5 即可；首次同步会以本机为准建立基线。
+
+> 两台机器跑**不同 profile**（一台 desktop、一台 web）时，插件清单会分别存在
+> `plugins/desktop/` 和 `plugins/web/` 下，各自独立、不会互相覆盖——面板会显示
+> 「远端用的是 xxx」提示。这是有意为之：desktop 和 web 的插件集本来就不同。
 
 ## 同步什么、怎么合并
 

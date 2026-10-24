@@ -239,6 +239,10 @@ window.__ModuleLoader__.load({
               o.tokenConfigured ? `token 已配置${o.tokenSource ? `（${o.tokenSource}）` : ''}` : 'token 未配置'),
             h('span', { style: { color: T.muted, fontSize: 12 } }, o.remote || '未配置远端'),
             h('span', { style: { color: T.muted, fontSize: 12 } }, `profile: ${o.profile ?? '-'}`),
+            o.remoteProfile && o.remoteProfile !== o.profile
+              ? h('span', { style: { color: T.warn, fontSize: 12 } },
+                  `远端用的是 ${o.remoteProfile}（插件清单各存一份，不会互相覆盖）`)
+              : null,
             h('span', { style: { color: T.muted, fontSize: 12 } }, `上次同步: ${o.lastSyncAt ? o.lastSyncAt.slice(0, 19).replace('T', ' ') : '从未'}`),
           ),
         ),
@@ -253,8 +257,8 @@ window.__ModuleLoader__.load({
           h('div', { style: { ...S.row, marginTop: 10 } },
             h('label', { style: S.field }, h('span', { style: S.label }, '访问令牌（仅 HTTPS 需要；留空 = 自动复用 DSH 已登录的 GitHub 凭据）'),
               h('input', { style: S.input, type: 'password', value: form.token ?? '', placeholder: 'ghp_… / github_pat_…', onChange: (e) => patchForm('token', e.target.value) })),
-            h('label', { style: S.field }, h('span', { style: S.label }, 'profile'),
-              h('input', { style: S.input, value: form.profile ?? 'desktop', onChange: (e) => patchForm('profile', e.target.value) })),
+            h('label', { style: S.field }, h('span', { style: S.label }, 'profile（留空 = 自动检测当前 profile）'),
+              h('input', { style: S.input, value: form.profile ?? '', placeholder: o.profile ? `自动：${o.profile}` : 'desktop / web / tui …', onChange: (e) => patchForm('profile', e.target.value) })),
           ),
           h('div', { style: { ...S.row, marginTop: 12 } },
             h('label', { style: S.check }, h('input', { type: 'checkbox', checked: inc.sessions !== false, onChange: (e) => patchInclude('sessions', e.target.checked) }), '会话'),

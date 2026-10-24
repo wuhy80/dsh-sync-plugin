@@ -60,6 +60,15 @@
 判断「本机删了」靠上一次同步后落盘的会话快照（`~/.dsh/dsh-sync/state.json` 的 `knownSessions`）。
 删之前同样进备份目录，可回滚。
 
+### profile 不是 desktop 专属
+`dsh plugin --profile desktop …` 会被 CLI 拒绝（desktop 由 Electron 托管），所以插件不能把
+desktop 写死。设置里的 `profile` 留空即**自动检测**：`DSH_PROFILE` → `DSH_PROFILE_DIR` 的
+basename → 本模块所在的 `profiles/<name>/node_modules` 路径 → 依赖里登记了本插件的那个
+profile → 回退 desktop。desktop / web / tui / headless 一视同仁。
+
+两台机器跑不同 profile 时，插件清单分别落在 `plugins/desktop/` 与 `plugins/web/`，
+各存一份、互不覆盖（`meta.json` 里记了写入方的 `profile`，面板据此提示）。
+
 ### 三路合并的基线从哪来
 `~/.dsh/dsh-sync/base/<rel>`：每次写入镜像后把该版本存为下一次的 base。
 没有 base（首次同步）时保守地取本地，并把远端另存一份。
