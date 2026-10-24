@@ -29,7 +29,7 @@ test('gitEnv：https+token 时注入 insteadOf，且 token 只在环境变量里
 })
 
 test('gitEnv：SSH 远端不注入（交给 ssh-agent）', () => {
-  const env = gitEnv({ token: 'ghp_x', remote: 'git@github.com:o/r.git' })
+  const env = gitEnv({ token: 'FAKE_SSH_TOKEN', remote: 'git@github.com:o/r.git' })
   assert.equal(env.GIT_CONFIG_COUNT, undefined, 'SSH 远端不该注入 insteadOf')
 })
 

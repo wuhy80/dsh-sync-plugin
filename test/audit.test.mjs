@@ -140,7 +140,7 @@ put(mirror, 'plugins/desktop/cordis.patch.yml', fs.readFileSync(prof0.patch))
 // ── 8) token 可显式清空（HTTP）───────────────────────────────────────────
 reset()
 {
-  writeSettings({ ...readSettings(paths), token: 'ghp_secret_value' }, paths)
+  writeSettings({ ...readSettings(paths), token: 'FAKE_SECRET_VALUE' }, paths)
   const routes = makeRoutes({ paths })
   const server = http.createServer((req, res) => {
     const route = routes.find((r) => r.path === req.url.split('?')[0])
@@ -160,7 +160,7 @@ reset()
     body: JSON.stringify({ token: '***' }),
   })
   assert.equal(res.status, 200)
-  assert.equal(readSettings(paths).token, 'ghp_secret_value', '传掩码不应清空')
+  assert.equal(readSettings(paths).token, 'FAKE_SECRET_VALUE', '传掩码不应清空')
 
   res = await fetch(`${base}/settings`, {
     method: 'PUT',
@@ -179,9 +179,9 @@ reset()
 // ── 9) 远端地址内嵌凭据的识别 ─────────────────────────────────────────────
 {
   const { inspectRemote } = await import('../lib/repo.js')
-  const bad = inspectRemote('https://user:ghp_abc123@github.com/me/x.git')
+  const bad = inspectRemote('https://user:FAKE_ABC123@github.com/me/x.git')
   assert.equal(bad.embedded, true)
-  assert.equal(bad.scrubbed.includes('ghp_abc123'), false, '脱敏后不应残留 token')
+  assert.equal(bad.scrubbed.includes('FAKE_ABC123'), false, '脱敏后不应残留 token')
   assert.equal(bad.scrubbed.includes('***'), true)
   assert.equal(inspectRemote('git@github.com:me/x.git').embedded, false, 'SSH 形态不应误判')
   assert.equal(inspectRemote('https://github.com/me/x.git').embedded, false)
