@@ -93,6 +93,10 @@ window.__ModuleLoader__.load({
       if (missing.length) {
         out.push(`⚠ ${missing.length} 个工作区指向本机不存在的路径（多半来自另一台机器）：${missing.slice(0, 2).join('；')}${missing.length > 2 ? ' …' : ''}`)
       }
+      const mapped = s.workspace?.mapped ?? []
+      if (mapped.length) {
+        out.push(`↳ 路径映射：${mapped.slice(0, 3).join('；')}${mapped.length > 3 ? ` …（共 ${mapped.length} 条）` : ''}`)
+      }
       return out
     }
 
@@ -130,6 +134,7 @@ window.__ModuleLoader__.load({
             include: form.include,
             sessions: form.sessions,
             author: form.author,
+            pathMap: form.pathMap,
           }
           if (form.token) body.token = form.token
           await api('/settings', { method: 'PUT', body })
@@ -168,7 +173,7 @@ window.__ModuleLoader__.load({
           const s = data.stats ?? {}
           const lines = [
             `会话：本地独有 ${s.sessions?.localOnly ?? 0} · 远端独有 ${s.sessions?.repoOnly ?? 0} · 需合并 ${s.sessions?.merged ?? 0} · 一致 ${s.sessions?.identical ?? 0}`,
-            `删除 ${s.sessions?.deleted ?? 0} · 跨目录合并 ${s.sessions?.crossSlug ?? 0} · 复活 ${s.sessions?.resurrected ?? 0} · 超限跳过 ${s.sessions?.skippedOversize ?? 0}`,
+            `删除 ${s.sessions?.deleted ?? 0} · 跨目录合并 ${s.sessions?.crossSlug ?? 0} · 路径映射改挂 ${s.sessions?.relocated ?? 0} · 复活 ${s.sessions?.resurrected ?? 0} · 超限跳过 ${s.sessions?.skippedOversize ?? 0}`,
             `工作区：${s.workspace?.mode ?? '-'} · 插件：${s.plugins?.mode ?? '-'} · 设置：${s.settings?.mode ?? '-'}`,
             '',
             ...rows.slice(0, 60).map((d) => `${String(d.action).padEnd(9)} ${String(d.kind).padEnd(16)} ${d.key}`),
@@ -272,6 +277,14 @@ window.__ModuleLoader__.load({
                 onChange: (e) => patchForm('sessions', { ...(form.sessions ?? {}), maxPerFileMB: Number(e.target.value) || 64 }),
               })),
           ),
+          h('label', { style: { ...S.field, marginTop: 10, width: '100%' } },
+            h('span', { style: S.label }, '跨机路径映射（一行一条，如 D:\\code => /Users/wuhy/code；把对方机器的路径映射到本机目录）'),
+            h('textarea', {
+              style: { ...S.input, minHeight: 64, fontFamily: 'ui-monospace, monospace' },
+              value: (form.pathMap ?? []).join('\n'),
+              placeholder: 'D:\\code => /Users/wuhy/code',
+              onChange: (e) => patchForm('pathMap', e.target.value.split('\n').map((s) => s.trim()).filter(Boolean)),
+            })),
           h('div', { style: { ...S.row, marginTop: 12 } },
             h('label', { style: S.check }, h('input', { type: 'checkbox', checked: inc.sessions !== false, onChange: (e) => patchInclude('sessions', e.target.checked) }), '会话'),
             h('label', { style: S.check }, h('input', { type: 'checkbox', checked: inc.workspace !== false, onChange: (e) => patchInclude('workspace', e.target.checked) }), '工作区'),
