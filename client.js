@@ -89,6 +89,10 @@ window.__ModuleLoader__.load({
       if (paths.length) {
         out.push(`⚠ 工作区路径不一致 ${paths.length} 处（未自动修改，需人工确认）：${paths.slice(0, 2).join('；')}${paths.length > 2 ? ' …' : ''}`)
       }
+      const missing = s.workspace?.missingPaths ?? []
+      if (missing.length) {
+        out.push(`⚠ ${missing.length} 个工作区指向本机不存在的路径（多半来自另一台机器）：${missing.slice(0, 2).join('；')}${missing.length > 2 ? ' …' : ''}`)
+      }
       return out
     }
 
