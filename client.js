@@ -71,6 +71,27 @@ window.__ModuleLoader__.load({
       return data
     }
 
+    /**
+     * 把 warnings / 版本冲突 / 路径冲突整理成给人看的几行。
+     * 这些以前只躺在 stats 里，面板不显示 —— 跳过、冲突都被静默吞掉了。
+     */
+    function issueLines(s = {}) {
+      const out = []
+      const warnings = s.warnings ?? []
+      for (const w of warnings.slice(0, 6)) out.push(`⚠ ${w}`)
+      if (warnings.length > 6) out.push(`⚠ …另有 ${warnings.length - 6} 条提示`)
+
+      const versions = s.plugins?.versionConflicts ?? []
+      if (versions.length) {
+        out.push(`⚠ 插件版本冲突 ${versions.length} 处：${versions.slice(0, 3).join('；')}${versions.length > 3 ? ' …' : ''}`)
+      }
+      const paths = s.workspace?.pathConflicts ?? []
+      if (paths.length) {
+        out.push(`⚠ 工作区路径不一致 ${paths.length} 处（未自动修改，需人工确认）：${paths.slice(0, 2).join('；')}${paths.length > 2 ? ' …' : ''}`)
+      }
+      return out
+    }
+
     function Panel() {
       const [state, setState] = useState(null)
       const [form, setForm] = useState(null)
@@ -143,10 +164,12 @@ window.__ModuleLoader__.load({
           const s = data.stats ?? {}
           const lines = [
             `会话：本地独有 ${s.sessions?.localOnly ?? 0} · 远端独有 ${s.sessions?.repoOnly ?? 0} · 需合并 ${s.sessions?.merged ?? 0} · 一致 ${s.sessions?.identical ?? 0}`,
+            `删除 ${s.sessions?.deleted ?? 0} · 跨目录合并 ${s.sessions?.crossSlug ?? 0} · 复活 ${s.sessions?.resurrected ?? 0} · 超限跳过 ${s.sessions?.skippedOversize ?? 0}`,
             `工作区：${s.workspace?.mode ?? '-'} · 插件：${s.plugins?.mode ?? '-'} · 设置：${s.settings?.mode ?? '-'}`,
             '',
             ...rows.slice(0, 60).map((d) => `${String(d.action).padEnd(9)} ${String(d.kind).padEnd(16)} ${d.key}`),
             rows.length > 60 ? `… 另有 ${rows.length - 60} 项` : '',
+            ...issueLines(s),
           ].filter(Boolean)
           setMsg({ kind: rows.length ? 'warn' : 'ok', text: lines.join('\n') })
         } catch (error) {
@@ -167,10 +190,12 @@ window.__ModuleLoader__.load({
             kind: data.pushed?.ok === false ? 'err' : 'ok',
             text: [
               `会话：推送 ${s.sessions?.localOnly ?? 0} · 拉取 ${s.sessions?.repoOnly ?? 0} · 合并 ${s.sessions?.merged ?? 0} · 快进 ${s.sessions?.fastForward ?? 0}`,
+              `删除 ${s.sessions?.deleted ?? 0} · 跨目录合并 ${s.sessions?.crossSlug ?? 0} · 复活 ${s.sessions?.resurrected ?? 0}`,
               `工作区 ${s.workspace?.mode ?? '-'} · 插件 ${s.plugins?.mode ?? '-'} · 设置 ${s.settings?.mode ?? '-'}${s.settings?.conflicts ? `（冲突 ${s.settings.conflicts}）` : ''}`,
               `写入：镜像 ${data.applied?.written?.repo ?? 0} · 本地 ${data.applied?.written?.local ?? 0}`,
               `提交：${data.commit?.committed ? data.commit.sha : '无改动'} · 推送：${data.pushed?.ok ? '成功' : data.pushed?.skipped ? '跳过' : `失败 ${data.pushed?.detail ?? ''}`}`,
               data.applied?.backup?.dir ? `备份：${data.applied.backup.dir}` : '',
+              ...issueLines(s),
               data.needsInstall ? `\n⚠️ 插件清单已更新，请执行一次依赖安装：${data.installCommand}\n（装完重启 DSH 才会生效）` : '',
             ].filter(Boolean).join('\n'),
           })

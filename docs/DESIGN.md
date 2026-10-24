@@ -46,11 +46,19 @@
 | 数据 | 位置 | 合并方式 | 冲突处理 |
 |---|---|---|---|
 | 会话 | `sessions/<ws>/<sid>/session.v4.jsonl.zstd` | 行级并集（前缀 + 两侧尾段） | 无冲突概念；帧解不开则保留本地并告警 |
+| 会话（跨目录） | 同一 `<sid>` 落在不同 `<ws>` | 按 session id 合并两侧内容，再分别写回各自目录 | 面板提示「建议两端用相同工程路径」 |
+| 删除（墓碑） | `sessions/_tombstones.json` | 删除也作为事实传播：本机删 → 删镜像那份；镜像有墓碑 → 删本机那份 | 本机文件 mtime 晚于墓碑 → 判为复活，清掉墓碑 |
 | 工作区 | `storages/workspace.json` | `tables.workspaces` 按 id 并集；`sessionIds`/归档/置顶并集；同 id 取 `updatedAt` 较新者 | 同一工作区两种 `path` → 报 `pathConflicts`，**不自动改 path** |
 | 仓库工作区 | `dsh-github-workspaces.json` | `repos` 对象按键合并 | 保留本地设置（镜像/代理等机器相关项） |
 | 插件清单 | `profiles/<p>/package.json` | `dependencies` 并集 + 版本仲裁（取更高版本）；`dsh.profile.bundles` 并集 | 版本差写进 `versionConflicts`；`link:`/`file:` 依赖标为「仅本机」，不下发 |
 | 锁文件 | `pnpm-lock.yaml` | 不做文本合并，跟随本地（与本地清单配套） | 本地缺失才取远端 |
 | 设置层 | `profiles/<p>/cordis.patch.yml` | **三路行合并**（base = 上次同步留存，local，remote） | 同一处都改 → 保留本地 + 另存 `.remote-<时间戳>` |
+
+### 删除为什么需要墓碑
+并集合并的副作用是「删不掉」：甲机删掉会话，乙机和镜像里还有，下一轮就被拉回来。
+所以删除必须被显式记录成事实（墓碑 = `key → 删除时间`），随镜像扩散；
+判断「本机删了」靠上一次同步后落盘的会话快照（`~/.dsh/dsh-sync/state.json` 的 `knownSessions`）。
+删之前同样进备份目录，可回滚。
 
 ### 三路合并的基线从哪来
 `~/.dsh/dsh-sync/base/<rel>`：每次写入镜像后把该版本存为下一次的 base。
@@ -58,9 +66,11 @@
 
 ## 4. 安全模型
 
-- **公共仓库一律拒绝**：配置了 token 时先用 GitHub API 判定 `private`，`public` 直接 400。
+- **公共仓库一律拒绝**：有 token 时带 Bearer 查 `private`，`public` 直接 400；
+  没有 token 时做一次匿名探测（公共库匿名可读 → 判 `public`），SSH 远端同样拦得住。
 - **凭据永不同步**：`.credentials.yaml` / `credentials.yaml` 写进 `neverSync`（代码里硬约束，不靠配置）。
-- **token 不进 argv**：用 `GIT_CONFIG_*` 环境变量注入 `url.<带凭据>.insteadOf`，由 git 自己改写 URL；
+- **token 不进 argv**：git 用 `GIT_CONFIG_*` 注入；GitHub API 校验在进程内 `fetch` 完成
+  （早先版本把 token 拼进 `node -e` 的 argv，`ps` 可见，已修）；
   `GIT_TERMINAL_PROMPT=0` 保证无人值守时不挂起。
 - **写入前备份**：所有将被覆盖的本地文件先复制到 `~/.dsh/dsh-sync/backup/<时间戳>-<label>/`。
 - **只监听本机**：所有 HTTP 端点过 loopback 门禁（LAN 暴露的 `dsh web` 不可用）。
@@ -73,6 +83,8 @@
 ~/.dsh/dsh-sync/repo/           # 镜像仓库（git worktree，结构见下）
 ~/.dsh/dsh-sync/backup/         # 写回前备份
 ~/.dsh/dsh-sync/base/           # 三路合并基线
+~/.dsh/dsh-sync/tombstones.json # 本机墓碑（已删除的会话）
+~/.dsh/dsh-sync/state.json      # 上次同步后的会话快照（识别本机删除）
 ```
 
 镜像仓库布局：
@@ -80,6 +92,7 @@
 ```
 meta.json                                   # schemaVersion / instanceId / updatedAt
 sessions/<ws>/<sid>/session.v4.jsonl.zstd
+sessions/_tombstones.json                   # 已删除会话的墓碑（删除也要传播）
 workspace/workspace.json
 workspace/github-workspaces.json
 plugins/<profile>/package.json
@@ -163,9 +176,12 @@ plugins/<profile>/pnpm-lock.yaml
   所以**不要用 `git merge` 手工处理 `sessions/**`**。
 - 帧末尾的**垃圾字节**会被 zstd 忽略：解码成功、但重新编码时这些字节不会保留。
   它们对 DSH 本身也是不可读的，因此按"无意义残留"处理。
-- **删除与取消归档不会传播**（并集语义）：在甲机删掉一个会话，乙机和仓库里仍有，
-  下一次同步会把它**拉回来**。要真正删除，需要同时清掉仓库里的那份
-  （`~/.dsh/dsh-sync/repo/sessions/<slug>/<sid>/`）。v0.3 会引入墓碑（tombstone）。
+- **删除靠墓碑传播**：删掉的会话会同步删掉镜像/其它机器那份（删前备份，可回滚）。
+  例外与边界：
+  - 本机文件 mtime **晚于**墓碑时间时判为「删除后又有新对话」→ 复活，清掉墓碑；
+  - 墓碑机制从这一版插件**第一次同步**开始记录会话快照（`state.json` 的 `knownSessions`），
+    在那之前删掉的会话仍可能被拉回来一次；
+  - **取消归档**仍是并集语义，只同步 `archived` 标记，不删文件。
 - `pnpm-lock.yaml` 不做合并（合并后的锁文件几乎必然损坏），以本地为准。
 - 工作区 `path` 跨机不同只报告不修改——自动改路径的风险远大于收益。
 - 路径过深时（`~/.dsh/dsh-sync/repo/sessions/<slug>/<sid>/…`）可能触及 Windows 260 字符限制；

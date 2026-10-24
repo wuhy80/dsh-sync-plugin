@@ -38,10 +38,14 @@ dsh plugin --profile desktop add link:D:\code\dsh-sync
 | 数据 | 来源 | 合并 |
 |---|---|---|
 | 会话 | `~/.dsh/sessions/**/session.v4.jsonl.zstd` | 解帧后行级并集（一侧是另一侧前缀时直接采信较长那份） |
+| 删除 | 墓碑 `sessions/_tombstones.json` | 删掉的会话同步删除远端/其它机器那份（删前备份）；删除之后又写过则以写入为准（复活） |
 | 工作区 | `~/.dsh/storages/workspace.json` | 按 id 键合并，`sessionIds` 取并集，同 id 取 `updatedAt` 较新者 |
 | 仓库工作区 | `~/.dsh/dsh-github-workspaces.json` | `repos` 按键合并 |
 | 插件清单 | `profiles/<profile>/package.json` | 依赖并集 + 版本取高；`link:`/`file:` 标记为仅本机 |
 | 设置层 | `profiles/<profile>/cordis.patch.yml` | 三路行合并，冲突保留本地并另存 `.remote-<时间戳>` |
+
+同一个会话在两台机器上落在**不同的工作区目录**（工程路径不同 → slug 不同）时，会按 session id
+把两侧内容合并后分别写回各自目录，并在面板提示「建议两端使用相同工程路径」。
 
 **不同步**：`.credentials.yaml`（硬约束）、`node_modules`、`cache`、`runtimes`、`attachments`、机器本地的统计类数据。
 
@@ -93,3 +97,6 @@ node test/e2e-github.mjs            # 真实 GitHub 往返（默认跳过，见�
 - 会话是压缩二进制，**不要**用 `git merge` 手工处理 `sessions/**`（冲突检测靠插件的解帧逻辑）。
 - `pnpm-lock.yaml` 不合并，以本地为准。
 - 工作区路径跨机不一致时只报告、不自动修改。
+- 删除靠墓碑传播：**第一次同步之后**才记录「本机有哪些会话」，所以在这一版插件第一次同步之前
+  删掉的会话，仍可能被远端拉回来一次。
+- 取消归档仍是并集语义（只同步 `archived` 标记，不做删除）。
