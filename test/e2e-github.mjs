@@ -1,15 +1,31 @@
 /**
- * 真实 GitHub 往返（SSH）：验证 token/SSH 认证、私库判定、跨网络 push/pull、会话并集。
+ * 真实 GitHub 往返（SSH）：验证认证、私库判定、跨网络 push/pull、会话并集。
  *
- * 用临时 DSH_HOME 造数据，推到真实私有仓库 wuhy80/dsh-sync。
- * 结束后把仓库内容清空（普通提交，不用 force），保证你第一次真实同步从干净状态开始。
+ * ⚠️ 这会往**真实仓库**写数据，所以远端不写死、必须由环境变量给出：
+ *     $env:DSH_SYNC_TEST_REMOTE='git@github.com:you/dsh-sync.git'
+ *     node test/e2e-github.mjs
+ * 未设置时直接跳过（插件仓库是公开的，别人不该往你的仓库推东西）。
+ *
+ * 跑完会把仓库内容清空（普通提交，不用 force），便于首次真实同步从干净状态开始。
  */
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-const REMOTE = 'git@github.com:wuhy80/dsh-sync.git'
+const REMOTE = String(process.env.DSH_SYNC_TEST_REMOTE ?? '').trim()
+const ALLOW_WRITE = process.env.DSH_SYNC_TEST_ALLOW_WRITE === '1'
+
+// 双重开关：这个测试会**写真实仓库**（末尾还会清空内容），
+// 必须显式确认目标是一次性仓库，绝不允许误对着正在用的数据仓库跑。
+if (!REMOTE || !ALLOW_WRITE) {
+  console.log(
+    '跳过 e2e-github：需要 DSH_SYNC_TEST_REMOTE=<一次性仓库> 且 DSH_SYNC_TEST_ALLOW_WRITE=1\n' +
+      '  例：$env:DSH_SYNC_TEST_REMOTE="git@github.com:you/dsh-sync-smoke.git"; $env:DSH_SYNC_TEST_ALLOW_WRITE="1"',
+  )
+  process.exit(0)
+}
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-sync-gh-'))
 const homeA = path.join(tmp, 'home-a')
 const homeB = path.join(tmp, 'home-b')
@@ -61,13 +77,29 @@ async function syncOnce(home, label) {
 const lines = (path) => linesOf(splitFrames(fs.readFileSync(path)).frames)
 const sessionPath = (paths) => path.join(paths.sessions, WS, SID, SESSION_FILE)
 
-// 0) 私库判定（无 token 时应为 unknown，而不是误判 public）
+// 0) 私库判定：绝不能判成 public（有凭据时为 private，无凭据时匿名探测为 unknown）
 const privacy = await checkPrivate({ remote: REMOTE, token: '' })
-console.log('0) 私库判定（无 token）:', privacy.state)
-assert.equal(privacy.state, 'unknown')
+console.log('0) 私库判定（自动复用本机凭据）:', privacy.state)
+assert.notEqual(privacy.state, 'public', `数据仓库必须是私有，实际判成 ${privacy.state}`)
 
 // 1) A 首次推送
 const pathsA = seedHome(homeA, ['{"e":1}', '{"e":2}'], 'w-a')
+
+// 预检：目标仓库必须**还没有会话数据**。
+// 否则这个测试末尾的清理会把真实会话从仓库里删掉（2026-10-24 差点踩到）。
+{
+  await ensureMirror({ mirror: pathsA.mirror, remote: REMOTE, branch: 'main' })
+  const pre = await fetchAndFastForward({ mirror: pathsA.mirror, branch: 'main', remote: REMOTE })
+  assert.equal(pre.ok, true, `预检拉取失败：${pre.detail ?? ''}`)
+  const sessionsDir = path.join(pathsA.mirror, 'sessions')
+  const existing = fs.existsSync(sessionsDir) ? fs.readdirSync(sessionsDir) : []
+  assert.equal(
+    existing.length,
+    0,
+    `目标仓库已有会话数据（${existing.slice(0, 3).join(', ')}…），拒绝在此运行——请换一个一次性仓库`,
+  )
+}
+
 const a1 = await syncOnce(homeA, 'A1')
 console.log('1) A 首次同步:', a1.commit.committed ? `提交 ${a1.commit.sha}` : '无提交', '| 计划', a1.plan.decisions.length, '项')
 

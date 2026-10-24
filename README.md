@@ -47,8 +47,14 @@ dsh plugin --profile desktop add link:D:\code\dsh-sync
 
 ## 安全
 
-- 公共仓库拒绝同步（token 可用时先用 API 校验 `private`）。
-- token 通过 `GIT_CONFIG_*` 环境变量注入，不进命令行参数。
+> **分工明确：插件公开、数据私有。** 插件源码里没有任何凭据（测试 fixture 全是 `FAKE_*`）；
+> 被同步的会话/工作区/插件清单只进你**自己的私有**仓库。
+
+- **公共仓库一律拒绝**：有 token 时带 Bearer 校验；**没有 token 时也会做一次匿名探测**
+  （公共库匿名可读 → 判 `public` → 拒绝同步），所以 SSH 远端同样拦得住。
+- token 通过 `GIT_CONFIG_*` 环境变量注入，不进命令行参数；
+  面板没填时自动复用 DSH 凭据中心里已登录的 GitHub token。
+- `.credentials.yaml` / `node_modules` / `cache` / `runtimes` 永不入库（代码守卫 + `.gitignore` 兜底）。
 - 所有 HTTP 端点只允许本机回环访问。
 - agent 工具只有 `status` / `plan`（只读）；真正的同步由你在面板点击。
 
@@ -64,13 +70,23 @@ dsh_sync(action: "plan")     # 预演：会改动哪些文件（不写盘）
 ```powershell
 node --test test/merge.test.mjs     # 合并核心单测（17 项）
 node test/audit.test.mjs            # 对抗性自查（14 项：损坏/超大/长路径/并发/锁/公共库…）
+node --test test/private-check.test.mjs   # 私库判定：匿名探测公共库 / 凭据兜底（10 项）
 node test/smoke-real.mjs            # 本机真实数据只读冒烟
 node test/e2e-local.mjs             # 本地裸仓库双机往返
 node test/routes-http.mjs           # 路由层 HTTP（真 server）
-node test/e2e-github.mjs            # 真实 GitHub 往返（需要 SSH 凭据，会清空仓库内容）
 node --test test/env-injection.test.mjs   # HTTPS+token 的凭据注入机制
 node --test test/client-slots.test.mjs    # 面板插槽注册（不用开 GUI）
+node test/e2e-github.mjs            # 真实 GitHub 往返（默认跳过，见下）
 ```
+
+> `e2e-github.mjs` 会**写真实仓库**，所以需要两个开关，并且会拒绝在**已有会话数据**的仓库上运行
+> （防止把正在用的数据仓库清空）：
+>
+> ```powershell
+> $env:DSH_SYNC_TEST_REMOTE="git@github.com:you/dsh-sync-smoke.git"   # 必须是**一次性**仓库
+> $env:DSH_SYNC_TEST_ALLOW_WRITE="1"
+> node test/e2e-github.mjs
+> ```
 
 ## 已知限制
 
