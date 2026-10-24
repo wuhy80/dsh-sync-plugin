@@ -145,7 +145,9 @@ plugins/<profile>/pnpm-lock.yaml
 - 黑名单按**路径段**判定（避免 `--D-code-cache--` 被误杀），命中即抛；
 - token 支持 `clearToken` 显式清空（空串/掩码仍表示不变）；
 - 远端地址内嵌凭据（`https://user:token@…`）检测 + 脱敏告警；
-- 真实 GitHub 往返（SSH，私有仓库 `wuhy80/dsh-sync`）验证通过，测试数据已从仓库清空。
+- 真实 GitHub 往返（SSH，指向一个**一次性私有仓库**）验证通过；
+  该测试需要 `DSH_SYNC_TEST_REMOTE` + `DSH_SYNC_TEST_ALLOW_WRITE=1` 两个开关，
+  并且会在目标仓库已有会话数据时拒绝运行。
 
 ## 8. 路线图
 
