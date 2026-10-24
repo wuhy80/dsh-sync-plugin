@@ -71,6 +71,20 @@ dsh_sync(action: "plan")     # 预演：会改动哪些文件（不写盘）
 
 ## 开发
 
+### 热重载（改完代码不重启 DSH）
+
+DSH 内置 `@deepseek-ai/dsh-hmr`：它监听 profile 的 patch 文件，patch 一变就做一次
+「profile 重组」，并把**链接包**（`link:` 装的插件，含软链目标）里磁盘上变过的文件
+对应的插件重新挂载 —— 所以插件装成链接包后，改完代码跑一次下面这条就生效（约 1.5~3 秒）：
+
+```powershell
+node scripts/reload.mjs            # 默认 desktop profile
+node scripts/reload.mjs --wait     # 等挂载日志出现新记录再退出
+```
+
+面板那半（`client.js`）是浏览器模块，服务端重载后还要 `Ctrl+R` 刷新页面。
+HMR 只替换「文件真的变了」的插件——源码没动时不会重新挂载，这是正常的。
+
 ```powershell
 node --test test/merge.test.mjs     # 合并核心单测（17 项）
 node test/audit.test.mjs            # 对抗性自查（14 项：损坏/超大/长路径/并发/锁/公共库…）
