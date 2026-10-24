@@ -82,12 +82,12 @@ dsh plugin --profile web add link:D:\code\dsh-sync
 
 | 数据 | 来源 | 合并 |
 |---|---|---|
-| 会话 | `~/.dsh/sessions/**/session.v4.jsonl.zstd` | 解帧后行级并集（一侧是另一侧前缀时直接采信较长那份） |
+| 会话 | `~/.dsh/sessions/**/session.v4.jsonl.zstd` | 解帧后行级并集；一侧是另一侧前缀时直接采信较长那份；**两侧都续写过时按事件时间归并**（各自内部顺序不变） |
 | 删除 | 墓碑 `sessions/_tombstones.json` | 删掉的会话同步删除远端/其它机器那份（删前备份）；删除之后又写过则以写入为准（复活） |
-| 工作区 | `~/.dsh/storages/workspace.json` | 按 id 键合并，`sessionIds` 取并集，同 id 取 `updatedAt` 较新者 |
+| 工作区 | `~/.dsh/storages/workspace.json` | 按 id 键合并，`sessionIds` 取并集，其余字段取 `updatedAt` 较新者；**`path` 永远以本机为准** |
 | 仓库工作区 | `~/.dsh/dsh-github-workspaces.json` | `repos` 按键合并 |
 | 插件清单 | `profiles/<profile>/package.json` | 依赖并集 + 版本取高；`link:`/`file:` 标记为仅本机 |
-| 设置层 | `profiles/<profile>/cordis.patch.yml` | 三路行合并，冲突保留本地并另存 `.remote-<时间戳>` |
+| 设置层 | `profiles/<profile>/cordis.patch.yml` | 三路行合并（无 base 时先判包含关系），冲突保留本地并另存 `.remote-<时间戳>` |
 
 同一个会话在两台机器上落在**不同的工作区目录**（工程路径不同 → slug 不同）时，会按 session id
 把两侧内容合并后分别写回各自目录，并在面板提示「建议两端使用相同工程路径」。
@@ -155,7 +155,10 @@ node test/e2e-github.mjs            # 真实 GitHub 往返（默认跳过，见�
 
 - 会话是压缩二进制，**不要**用 `git merge` 手工处理 `sessions/**`（冲突检测靠插件的解帧逻辑）。
 - `pnpm-lock.yaml` 不合并，以本地为准。
-- 工作区路径跨机不一致时只报告、不自动修改。
+- 工作区 `path` 永远保留本机那份；两端路径不同只在面板报告，不自动改。
+  只在远端存在的工作区仍会带过来（指向对方路径），面板会提示「指向本机不存在的路径」。
+- 会话分叉按事件时间归并的前提是：两侧尾段每一行都有 `time`/`createdAt` 且非递减。
+  取不到时间、或某一侧时间乱序（时钟被拨回）时，退回「本地尾段在前」的老行为。
 - 删除靠墓碑传播：**第一次同步之后**才记录「本机有哪些会话」，所以在这一版插件第一次同步之前
   删掉的会话，仍可能被远端拉回来一次。
 - 取消归档仍是并集语义（只同步 `archived` 标记，不做删除）。

@@ -45,10 +45,10 @@
 
 | 数据 | 位置 | 合并方式 | 冲突处理 |
 |---|---|---|---|
-| 会话 | `sessions/<ws>/<sid>/session.v4.jsonl.zstd` | 行级并集（前缀 + 两侧尾段） | 无冲突概念；帧解不开则保留本地并告警 |
+| 会话 | `sessions/<ws>/<sid>/session.v4.jsonl.zstd` | 行级并集（前缀 + 两侧尾段）；两侧都续写过时按事件时间归并 | 无冲突概念；帧解不开则保留本地并告警 |
 | 会话（跨目录） | 同一 `<sid>` 落在不同 `<ws>` | 按 session id 合并两侧内容，再分别写回各自目录 | 面板提示「建议两端用相同工程路径」 |
 | 删除（墓碑） | `sessions/_tombstones.json` | 删除也作为事实传播：本机删 → 删镜像那份；镜像有墓碑 → 删本机那份 | 本机文件 mtime 晚于墓碑 → 判为复活，清掉墓碑 |
-| 工作区 | `storages/workspace.json` | `tables.workspaces` 按 id 并集；`sessionIds`/归档/置顶并集；同 id 取 `updatedAt` 较新者 | 同一工作区两种 `path` → 报 `pathConflicts`，**不自动改 path** |
+| 工作区 | `storages/workspace.json` | `tables.workspaces` 按 id 并集；`sessionIds`/归档/置顶并集；同 id 取 `updatedAt` 较新者 | `path` **永远保留本机**（对方路径在本机不存在）；路径差异报 `pathConflicts` |
 | 仓库工作区 | `dsh-github-workspaces.json` | `repos` 对象按键合并 | 保留本地设置（镜像/代理等机器相关项） |
 | 插件清单 | `profiles/<p>/package.json` | `dependencies` 并集 + 版本仲裁（取更高版本）；`dsh.profile.bundles` 并集 | 版本差写进 `versionConflicts`；`link:`/`file:` 依赖标为「仅本机」，不下发 |
 | 锁文件 | `pnpm-lock.yaml` | 不做文本合并，跟随本地（与本地清单配套） | 本地缺失才取远端 |
