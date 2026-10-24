@@ -47,7 +47,8 @@ dsh plugin --profile web add link:D:\code\dsh-sync
 5. 点 **立即同步**：拉取 → 合并 → 提交 → 推送。写回本地前会备份到
    `~/.dsh/dsh-sync/backup/<时间戳>-pre-apply/`。
 
-另一台机器重复 1–5 即可；首次同步会以本机为准建立基线。
+另一台机器重复 1–5 即可。首次同步不是「以谁为准」，而是按数据类型做并集合并——
+两边都已经有内容时怎么合，见下一节。
 
 > 两台机器跑**不同 profile**（一台 desktop、一台 web）时，插件清单会分别存在
 > `plugins/desktop/` 和 `plugins/web/` 下，各自独立、不会互相覆盖——面板会显示
